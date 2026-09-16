@@ -1,0 +1,14 @@
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment & Mac OS
+.DS_Store
+.venv/
+venv/
+ENV/
+.env
+
+# Streamlit Local Cache
+.streamlit/

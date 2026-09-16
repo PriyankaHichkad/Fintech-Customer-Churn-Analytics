@@ -1,0 +1,117 @@
+import pandas as pd
+import numpy as np
+import os
+import pickle
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import roc_auc_score, precision_score, recall_score, f1_score, average_precision_score
+import xgboost as xgb
+import shap
+
+def train_and_evaluate_churn_models(data_path: str = None):
+    if data_path is None:
+        data_path = os.path.join(os.path.dirname(__file__), '../data/processed_rfm_data.csv')
+        
+    df = pd.read_csv(data_path)
+    
+    # Define features
+    feature_cols = [
+        'age', 'tenure_months', 'income_annual', 'credit_limit',
+        'current_utilization', 'utilization_3m_change', 'avg_monthly_spend',
+        'spend_3m_vs_12m', 'days_since_last_txn', 'transaction_count_monthly',
+        'late_payment_count_12m', 'interest_paid_12m', 'support_tickets_12m',
+        'complaint_tickets_12m', 'app_session_frequency_monthly',
+        'competitor_offer_received', 'annual_fee', 'R_score', 'F_score',
+        'M_score', 'RFM_Score', 'utilization_risk_flag', 'inactivity_trend_flag',
+        'support_friction_score', 'high_fee_friction_flag'
+    ]
+    
+    # One-hot encode categorical features
+    df_encoded = pd.get_dummies(df, columns=['card_tier', 'rfm_segment'], drop_first=False)
+    encoded_feature_cols = [col for col in df_encoded.columns if col not in [
+        'customer_id', 'churn_label', 'churn_prob_true', 'baseline_ltv',
+        'expected_lifespan_years', 'annual_net_margin', 'interchange_revenue_annual',
+        'reward_cost_annual', 'servicing_cost_annual', 'annual_spend'
+    ]]
+    
+    X = df_encoded[encoded_feature_cols]
+    y = df_encoded['churn_label']
+    
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42, stratify=y)
+    
+    # 1. Baseline Model: Logistic Regression
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+    
+    lr_model = LogisticRegression(max_iter=1000, random_state=42)
+    lr_model.fit(X_train_scaled, y_train)
+    lr_probs = lr_model.predict_proba(X_test_scaled)[:, 1]
+    
+    lr_auc = roc_auc_score(y_test, lr_probs)
+    lr_pr_auc = average_precision_score(y_test, lr_probs)
+    
+    # 2. Champion Model: XGBoost
+    xgb_model = xgb.XGBClassifier(
+        n_estimators=150,
+        max_depth=4,
+        learning_rate=0.05,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        random_state=42,
+        eval_metric='logloss'
+    )
+    xgb_model.fit(X_train, y_train)
+    xgb_probs_test = xgb_model.predict_proba(X_test)[:, 1]
+    
+    xgb_auc = roc_auc_score(y_test, xgb_probs_test)
+    xgb_pr_auc = average_precision_score(y_test, xgb_probs_test)
+    
+    # Predict on entire dataset for downstream ROI simulation
+    df['predicted_churn_prob'] = xgb_model.predict_proba(X)[:, 1]
+    df['risk_decile'] = pd.qcut(df['predicted_churn_prob'].rank(method='first'), q=10, labels=list(range(10, 0, -1))).astype(int)
+    
+    # Top 20% Decile Capture Rate
+    top_20_cutoff = df['predicted_churn_prob'].quantile(0.80)
+    top_20_actual_churn = df[df['predicted_churn_prob'] >= top_20_cutoff]['churn_label'].sum()
+    total_actual_churn = df['churn_label'].sum()
+    top_20_capture_rate = top_20_actual_churn / total_actual_churn
+    
+    # 3. Compute SHAP Values
+    explainer = shap.TreeExplainer(xgb_model)
+    shap_values = explainer.shap_values(X)
+    
+    # Save artifacts
+    model_dir = os.path.join(os.path.dirname(__file__), '../data')
+    df.to_csv(os.path.join(model_dir, 'churn_predictions.csv'), index=False)
+    
+    metrics = {
+        'lr_auc': lr_auc,
+        'lr_pr_auc': lr_pr_auc,
+        'xgb_auc': xgb_auc,
+        'xgb_pr_auc': xgb_pr_auc,
+        'top_20_capture_rate': top_20_capture_rate,
+        'feature_names': encoded_feature_cols
+    }
+    
+    with open(os.path.join(model_dir, 'model_metrics.pkl'), 'wb') as f:
+        pickle.dump(metrics, f)
+        
+    with open(os.path.join(model_dir, 'shap_data.pkl'), 'wb') as f:
+        pickle.dump({
+            'explainer': explainer,
+            'shap_values': shap_values,
+            'X': X,
+            'feature_names': encoded_feature_cols
+        }, f)
+        
+    print("[Churn Model Engine] Training Complete!")
+    print(f"  Logistic Regression ROC-AUC: {lr_auc:.4f} | PR-AUC: {lr_pr_auc:.4f}")
+    print(f"  XGBoost Classifier ROC-AUC:  {xgb_auc:.4f} | PR-AUC: {xgb_pr_auc:.4f}")
+    print(f"  Top 20% Risk Decile Capture Rate: {top_20_capture_rate:.2%}")
+    
+    return xgb_model, metrics, df, shap_values
+
+if __name__ == '__main__':
+    train_and_evaluate_churn_models()
