@@ -2,16 +2,16 @@ import pandas as pd
 import numpy as np
 import os
 
-def simulate_retention_offers(df: pd.DataFrame, budget_cap: float = 250000.0) -> pd.DataFrame:
+def simulate_retention_offers(df: pd.DataFrame, budget_cap: float = 500000.0) -> pd.DataFrame:
     """
-    Simulates ROI for 4 retention offer strategies per customer, selecting optimal
-    offer to maximize portfolio Net ROI under budget constraints.
+    Simulates ROI for 4 retention offer strategies across 30,000 real UCI credit card accounts,
+    selecting optimal offer to maximize portfolio Net ROI under budget constraints.
     """
     df = df.copy()
     discount_rate = 0.10
     
     # 1. Offer Definitions & Costs
-    df['cost_fee_waiver'] = df['annual_fee']
+    df['cost_fee_waiver'] = np.maximum(50.0, df['annual_fee'])
     df['cost_points_boost'] = np.round(df['avg_monthly_spend'] * 12 * 0.015, 2)
     df['cost_apr_cut'] = 120.0
     df['cost_vip_perks'] = 150.0
@@ -19,14 +19,14 @@ def simulate_retention_offers(df: pd.DataFrame, budget_cap: float = 250000.0) ->
     p_baseline = np.clip(df['predicted_churn_prob'], 0.01, 0.95)
     
     # 2. Probability Reductions (Effectiveness per offer)
-    # Fee Waiver: highly effective for fee-paying cards with spend drop
-    eff_fee_waiver = np.where((df['annual_fee'] > 0), np.minimum(0.45, p_baseline * 0.65), 0.0)
+    # Fee / Balance Waiver: effective for users with annual fee or balance friction
+    eff_fee_waiver = np.where((df['annual_fee'] > 0) | (df['delinquency_count'] > 0), np.minimum(0.45, p_baseline * 0.65), 0.0)
     
-    # Points Boost: effective for high monthly spenders
-    eff_points_boost = np.where(df['avg_monthly_spend'] >= 500, np.minimum(0.38, p_baseline * 0.52), 0.0)
+    # Points Boost: effective for active monthly spenders
+    eff_points_boost = np.where(df['avg_monthly_spend'] >= 2000, np.minimum(0.38, p_baseline * 0.52), 0.0)
     
-    # APR Cut: effective for revolvers paying interest
-    eff_apr_cut = np.where((df['interest_paid_12m'] > 100) | (df['current_utilization'] > 0.50), np.minimum(0.42, p_baseline * 0.58), 0.0)
+    # APR Cut / Delinquency Relief: effective for revolvers & late pay status
+    eff_apr_cut = np.where((df['max_delay_months'] > 0) | (df['current_utilization'] > 0.50), np.minimum(0.42, p_baseline * 0.58), 0.0)
     
     # VIP Perks: effective for Platinum and Black tier cards
     eff_vip_perks = np.where(df['card_tier'].isin(['Platinum', 'Black']), np.minimum(0.35, p_baseline * 0.48), 0.0)
@@ -38,7 +38,6 @@ def simulate_retention_offers(df: pd.DataFrame, budget_cap: float = 250000.0) ->
     baseline_ltv = calc_ltv(df['annual_net_margin'], p_baseline)
     df['baseline_ltv'] = np.round(baseline_ltv, 2)
     
-    # Net ROI per offer = (New LTV - Baseline LTV) - Cost of Offer
     offers = ['fee_waiver', 'points_boost', 'apr_cut', 'vip_perks']
     eff_dict = {
         'fee_waiver': eff_fee_waiver,
@@ -59,7 +58,7 @@ def simulate_retention_offers(df: pd.DataFrame, budget_cap: float = 250000.0) ->
         
     # 4. Select Optimal Offer per Customer (Greedy Maximum Net ROI)
     def pick_best_offer(row):
-        # Only consider offers if churn prob >= 0.20 (target high/medium risk)
+        # Target customers with churn prob >= 0.20
         if row['predicted_churn_prob'] < 0.20:
             return 'No Offer (Low Risk)', 0.0, 0.0, 0.0
             
@@ -84,7 +83,7 @@ def simulate_retention_offers(df: pd.DataFrame, budget_cap: float = 250000.0) ->
     df['offer_cost'] = [r[2] for r in res]
     df['retained_ltv_gain'] = [r[3] for r in res]
     
-    # 5. Apply Budget Constraint Prioritization (Sort by Net ROI / Cost efficiency)
+    # 5. Apply Budget Constraint Prioritization
     eligible = df[df['expected_net_roi'] > 0].copy()
     eligible = eligible.sort_values(by='expected_net_roi', ascending=False)
     
@@ -94,11 +93,11 @@ def simulate_retention_offers(df: pd.DataFrame, budget_cap: float = 250000.0) ->
     df['campaign_target'] = False
     df.loc[eligible[eligible['within_budget']].index, 'campaign_target'] = True
     
-    # Update recommended offer to 'No Offer (Budget Exceeded)' for those cut by budget
     budget_exceeded_idx = eligible[~eligible['within_budget']].index
     df.loc[budget_exceeded_idx, 'recommended_offer'] = 'No Offer (Budget Exceeded)'
     
-    print("[ROI Simulation Engine] Simulation Complete!")
+    print("[ROI Simulation Engine - Real UCI Data] Simulation Complete!")
+    print(f"  Total Portfolio Accounts:    {len(df):,}")
     print(f"  Total Portfolio At-Risk LTV: ${df[df['predicted_churn_prob'] >= 0.30]['baseline_ltv'].sum():,.2f}")
     print(f"  Campaign Targeted Customers: {df['campaign_target'].sum():,} / {len(df):,}")
     print(f"  Total Campaign Cost:         ${df[df['campaign_target']]['offer_cost'].sum():,.2f}")
@@ -113,15 +112,17 @@ def simulate_retention_offers(df: pd.DataFrame, budget_cap: float = 250000.0) ->
 if __name__ == '__main__':
     data_path = os.path.join(os.path.dirname(__file__), '../data/churn_predictions.csv')
     if not os.path.exists(data_path):
+        from feature_engineering import clean_and_engineer_uci_data
         from churn_model import train_and_evaluate_churn_models
+        clean_and_engineer_uci_data()
         _, _, df_pred, _ = train_and_evaluate_churn_models()
     else:
         df_pred = pd.read_csv(data_path)
         
-    df_sim = simulate_retention_offers(df_pred, budget_cap=250000.0)
+    df_sim = simulate_retention_offers(df_pred, budget_cap=500000.0)
     out_path = os.path.join(os.path.dirname(__file__), '../data/retention_roi_simulated.csv')
     df_sim.to_csv(out_path, index=False)
     
     export_path = os.path.join(os.path.dirname(__file__), '../exports/customer_retention_recommendations.csv')
-    df_sim[['customer_id', 'card_tier', 'avg_monthly_spend', 'predicted_churn_prob', 'rfm_segment', 'baseline_ltv', 'recommended_offer', 'offer_cost', 'expected_net_roi']].to_csv(export_path, index=False)
+    df_sim[['customer_id', 'card_tier', 'LIMIT_BAL', 'avg_monthly_spend', 'predicted_churn_prob', 'rfm_segment', 'baseline_ltv', 'recommended_offer', 'offer_cost', 'expected_net_roi']].to_csv(export_path, index=False)
     print(f"[ROI Simulation Engine] Exported recommendations to {export_path}")
