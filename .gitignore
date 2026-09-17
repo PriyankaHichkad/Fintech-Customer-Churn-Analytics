@@ -12,3 +12,6 @@ ENV/
 
 # Streamlit Local Cache
 .streamlit/
+
+# Internal Automation Scripts (PowerPoint Deck Generator)
+scripts/
