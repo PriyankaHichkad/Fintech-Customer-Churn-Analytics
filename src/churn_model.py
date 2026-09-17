@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import os
+import sys
 import pickle
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
@@ -8,6 +9,10 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_auc_score, average_precision_score, precision_score, recall_score
 import xgboost as xgb
 import shap
+
+# Import centralized configuration
+sys.path.append(os.path.dirname(__file__))
+import config
 
 def train_and_evaluate_churn_models(data_path: str = None):
     if data_path is None:
@@ -35,14 +40,14 @@ def train_and_evaluate_churn_models(data_path: str = None):
     X = df_encoded
     y = df['churn_label']
     
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42, stratify=y)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=config.RANDOM_SEED, stratify=y)
     
     # 1. Baseline Model: Logistic Regression
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
     
-    lr_model = LogisticRegression(max_iter=1000, random_state=42)
+    lr_model = LogisticRegression(max_iter=1000, random_state=config.RANDOM_SEED)
     lr_model.fit(X_train_scaled, y_train)
     lr_probs = lr_model.predict_proba(X_test_scaled)[:, 1]
     
@@ -56,7 +61,7 @@ def train_and_evaluate_churn_models(data_path: str = None):
         learning_rate=0.04,
         subsample=0.8,
         colsample_bytree=0.8,
-        random_state=42,
+        random_state=config.RANDOM_SEED,
         eval_metric='logloss'
     )
     xgb_model.fit(X_train, y_train)
@@ -75,8 +80,9 @@ def train_and_evaluate_churn_models(data_path: str = None):
     total_actual_churn = df['churn_label'].sum()
     top_20_capture_rate = top_20_actual_churn / (total_actual_churn + 1e-5)
     
-    # 3. Compute SHAP Values (subsample for memory efficiency)
+    # 3. Compute SHAP Values (subsample 5,000 for efficiency with fixed seed)
     explainer = shap.TreeExplainer(xgb_model)
+    np.random.seed(config.RANDOM_SEED)
     shap_sample_idx = np.random.choice(len(X), size=min(5000, len(X)), replace=False)
     X_shap_sample = X.iloc[shap_sample_idx]
     shap_values = explainer.shap_values(X_shap_sample)
@@ -105,11 +111,8 @@ def train_and_evaluate_churn_models(data_path: str = None):
             'feature_names': encoded_feature_cols
         }, f)
         
-    print("[Churn Model Engine - Real UCI Data] Training Complete!")
-    print(f"  Total Accounts Evaluated:  {len(df):,}")
-    print(f"  Logistic Regression ROC-AUC: {lr_auc:.4f} | PR-AUC: {lr_pr_auc:.4f}")
-    print(f"  XGBoost Classifier ROC-AUC:  {xgb_auc:.4f} | PR-AUC: {xgb_pr_auc:.4f}")
-    print(f"  Top 20% Risk Decile Capture Rate: {top_20_capture_rate:.2%}")
+    print("[Churn Model Engine] Training Complete!")
+    print(f"  XGBoost Classifier ROC-AUC: {xgb_auc:.4f} | PR-AUC: {xgb_pr_auc:.4f}")
     
     return xgb_model, metrics, df, shap_values
 

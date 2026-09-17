@@ -1,30 +1,39 @@
 import pandas as pd
 import numpy as np
 import os
+import sys
+
+# Import centralized configuration
+sys.path.append(os.path.dirname(__file__))
+import config
 
 def clean_and_engineer_uci_data(data_path: str = None) -> pd.DataFrame:
     """
     Cleans raw UCI Credit Card dataset (30,000 accounts), decodes categorical codes,
     engineers 6-month time-series financial metrics, RFM scores, and baseline LTV.
+    
+    Note on RFM & Proxy Engineering:
+    - Monetary (M): Based on real 6-month billing statement averages from the UCI dataset.
+    - Recency (R) & Frequency (F): Engineered proxies derived deterministically using a fixed
+      random seed (seed=42) from recent payment delay status (PAY_0) and spend volume.
     """
+    np.random.seed(config.RANDOM_SEED)
+    
     if data_path is None:
         data_path = os.path.join(os.path.dirname(__file__), '../data/UCI_Credit_Card.csv')
         
     df = pd.read_csv(data_path)
     
     # 1. Clean Categorical Codes
-    # EDUCATION: 1=graduate school, 2=university, 3=high school, 4=others, 5=unknown, 6=unknown, 0=unknown
     edu_map = {1: 'Graduate School', 2: 'University', 3: 'High School', 4: 'Others', 5: 'Others', 6: 'Others', 0: 'Others'}
     df['education_clean'] = df['EDUCATION'].map(edu_map).fillna('Others')
     
-    # MARRIAGE: 1=married, 2=single, 3=others, 0=others
     marr_map = {1: 'Married', 2: 'Single', 3: 'Others', 0: 'Others'}
     df['marriage_clean'] = df['MARRIAGE'].map(marr_map).fillna('Others')
     
-    # SEX: 1=male, 2=female
     df['gender'] = df['SEX'].map({1: 'Male', 2: 'Female'}).fillna('Unknown')
     
-    # Rename Target
+    # Target: default.payment.next.month (Credit Default / Attrition Risk Trigger)
     df['churn_label'] = df['default.payment.next.month']
     df['customer_id'] = [f"CC-{id_val}" for id_val in df['ID']]
     
@@ -50,6 +59,8 @@ def clean_and_engineer_uci_data(data_path: str = None) -> pd.DataFrame:
     # Delinquency & Payment Delay Escalation
     df['max_delay_months'] = df[pay_status_cols].max(axis=1)
     df['delinquency_count'] = (df[pay_status_cols] > 0).sum(axis=1)
+    
+    # Deterministic Recency and Frequency Proxies (Seed=42)
     df['days_since_last_txn'] = np.where(df['PAY_0'] <= 0, np.random.randint(1, 15, len(df)), df['PAY_0'] * 30)
     df['transaction_count_monthly'] = np.clip(np.round(df['avg_monthly_spend'] / 80 + 5).astype(int), 1, 120)
     
@@ -67,11 +78,8 @@ def clean_and_engineer_uci_data(data_path: str = None) -> pd.DataFrame:
     df['card_tier'] = df['LIMIT_BAL'].apply(assign_card_tier)
     
     # 3. RFM Scoring Matrix
-    # Recency (Lower delay/days = higher score 5)
     df['R_score'] = pd.qcut(df['days_since_last_txn'].rank(method='first'), q=5, labels=[5, 4, 3, 2, 1]).astype(int)
-    # Frequency (Higher transaction count = higher score 5)
     df['F_score'] = pd.qcut(df['transaction_count_monthly'].rank(method='first'), q=5, labels=[1, 2, 3, 4, 5]).astype(int)
-    # Monetary (Higher spend = higher score 5)
     df['M_score'] = pd.qcut(df['avg_monthly_spend'].rank(method='first'), q=5, labels=[1, 2, 3, 4, 5]).astype(int)
     
     df['RFM_Score'] = df['R_score'] + df['F_score'] + df['M_score']
@@ -97,11 +105,8 @@ def clean_and_engineer_uci_data(data_path: str = None) -> pd.DataFrame:
     df['utilization_risk_flag'] = ((df['current_utilization'] > 0.75) | (df['utilization_trend'] > 0.15)).astype(int)
     df['support_friction_score'] = np.round(df['delinquency_count'] * 1.5 + np.maximum(0, df['max_delay_months']), 2)
     
-    interchange_rates = {'Standard': 0.0175, 'Gold': 0.020, 'Platinum': 0.0225, 'Black': 0.025}
-    df['interchange_revenue_annual'] = np.round(df['annual_spend'] * df['card_tier'].map(interchange_rates), 2)
-    
-    annual_fee_map = {'Standard': 0, 'Gold': 95, 'Platinum': 295, 'Black': 495}
-    df['annual_fee'] = df['card_tier'].map(annual_fee_map)
+    df['interchange_revenue_annual'] = np.round(df['annual_spend'] * df['card_tier'].map(config.INTERCHANGE_RATES), 2)
+    df['annual_fee'] = df['card_tier'].map(config.ANNUAL_FEE_MAP)
     
     df['interest_paid_12m'] = np.round(df['LIMIT_BAL'] * df['current_utilization'] * 0.18 * (df['pay_to_bill_ratio'] < 0.90).astype(int), 2)
     df['reward_cost_annual'] = np.round(df['annual_spend'] * 0.015, 2)
@@ -110,10 +115,8 @@ def clean_and_engineer_uci_data(data_path: str = None) -> pd.DataFrame:
     df['annual_net_margin'] = (df['interchange_revenue_annual'] + df['annual_fee'] + df['interest_paid_12m']) - (df['reward_cost_annual'] + df['servicing_cost_annual'])
     
     # Baseline expected LTV
-    discount_rate = 0.10
-    # Initial baseline churn estimate from max delay & utilization
     approx_churn = np.clip(0.10 + 0.15 * (df['max_delay_months'] > 0).astype(int) + 0.10 * (df['current_utilization'] > 0.80).astype(int), 0.05, 0.85)
-    df['baseline_ltv'] = np.round(df['annual_net_margin'] * (1.0 / (approx_churn + discount_rate)), 2)
+    df['baseline_ltv'] = np.round(df['annual_net_margin'] * (1.0 / (approx_churn + config.DISCOUNT_RATE)), 2)
     
     return df
 
@@ -122,6 +125,4 @@ if __name__ == '__main__':
     df_processed = clean_and_engineer_uci_data(data_path)
     out_path = os.path.join(os.path.dirname(__file__), '../data/processed_rfm_data.csv')
     df_processed.to_csv(out_path, index=False)
-    print(f"[Feature Engineering] Successfully processed {len(df_processed):,} real UCI records into {out_path}")
-    print(f"[Feature Engineering] Target Default/Churn Rate: {df_processed['churn_label'].mean():.2%}")
-    print(f"[Feature Engineering] RFM Segment Distribution:\n{df_processed['rfm_segment'].value_counts()}")
+    print(f"[Feature Engineering] Successfully processed {len(df_processed):,} real UCI records (Deterministic Seed={config.RANDOM_SEED})")
