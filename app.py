@@ -9,12 +9,11 @@ import pickle
 # Page Config
 st.set_page_config(
     page_title="FinTech Credit Card Churn & Retention Analytics Engine",
-    page_icon="💳",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Clean, High-Contrast Executive CSS Fix (Fixes contrast issues across light/dark Streamlit themes)
+# Clean, High-Contrast Executive CSS
 st.markdown("""
 <style>
     /* Metric Card Styling with High Contrast */
@@ -89,12 +88,12 @@ def load_data():
 df, metrics, shap_data = load_data()
 
 # Header Banner
-st.title("💳 FinTech Credit Card Churn & Retention Analytics Engine")
+st.title("FinTech Credit Card Churn & Retention Analytics Engine")
 st.markdown("**Executive Strategy Dashboard (30,000 Real UCI Accounts)** | *Data Analyst • Business Analyst • FinTech Product Manager*")
 st.markdown("---")
 
 # Sidebar Filters
-st.sidebar.header("🔍 Portfolio Filters")
+st.sidebar.header("Portfolio Filters")
 selected_tiers = st.sidebar.multiselect("Card Tier (Credit Limit)", options=df['card_tier'].unique(), default=df['card_tier'].unique())
 selected_segments = st.sidebar.multiselect("RFM Segment", options=df['rfm_segment'].unique(), default=df['rfm_segment'].unique())
 selected_education = st.sidebar.multiselect("Education Tier", options=df['education_clean'].unique(), default=df['education_clean'].unique())
@@ -110,10 +109,10 @@ filtered_df = df[
 
 # Tabs
 tab1, tab2, tab3, tab4 = st.tabs([
-    "📊 Executive Portfolio Overview",
-    "🤖 Machine Learning & SHAP Diagnostics",
-    "👤 Real Account Deep-Dive",
-    "💰 What-If Campaign ROI Simulator"
+    "Executive Portfolio Overview",
+    "Machine Learning & SHAP Diagnostics",
+    "Real Account Deep-Dive",
+    "What-If Campaign ROI Simulator"
 ])
 
 # TAB 1: EXECUTIVE PORTFOLIO OVERVIEW
@@ -201,7 +200,7 @@ with tab2:
     fig_shap.update_layout(template="plotly_white", height=450)
     st.plotly_chart(fig_shap, use_container_width=True)
     
-    st.info("💡 **Real Insight:** `PAY_0` (Recent Repayment Delay), `PAY_2`, `current_utilization`, `LIMIT_BAL`, and 6-month Payment-to-Bill Ratios are the strongest empirical drivers of credit default/churn in the UCI dataset.")
+    st.info("Real Insight: PAY_0 (Recent Repayment Delay), PAY_2, current_utilization, LIMIT_BAL, and 6-month Payment-to-Bill Ratios are the strongest empirical drivers of credit default/churn in the UCI dataset.")
 
 # TAB 3: REAL CUSTOMER DEEP-DIVE
 with tab3:
@@ -220,7 +219,7 @@ with tab3:
     
     col_a, col_b = st.columns(2)
     with col_a:
-        st.markdown("### 📋 Account Demographics & Real Financial Metrics")
+        st.markdown("### Account Demographics & Real Financial Metrics")
         st.write(f"• **Age / Gender:** {cust_data['AGE']} yrs | {cust_data['gender']}")
         st.write(f"• **Education / Marital Status:** {cust_data['education_clean']} | {cust_data['marriage_clean']}")
         st.write(f"• **Credit Limit:** ${cust_data['LIMIT_BAL']:,}")
@@ -231,7 +230,7 @@ with tab3:
         st.write(f"• **Max Repayment Delay (6-Mon):** {cust_data['max_delay_months']} month(s)")
         
     with col_b:
-        st.markdown("### 🎯 Retention Offer Economics")
+        st.markdown("### Retention Offer Economics")
         st.write(f"• **Offer Name:** <span class='badge-highlight'>{cust_data['recommended_offer']}</span>", unsafe_allow_html=True)
         st.write(f"• **Estimated Cost of Offer:** ${cust_data['offer_cost']:,.2f}")
         st.write(f"• **Gross Retained LTV Gain:** ${cust_data['retained_ltv_gain']:,.2f}")
@@ -239,9 +238,9 @@ with tab3:
         st.write(f"• **Knapsack ROI Density:** {cust_data['roi_density']:.2f}x")
         
         if cust_data['expected_net_roi'] > 0:
-            st.success("✅ **Positive ROI Recommendation:** Offer generates net profit above cost.")
+            st.success("Positive ROI Recommendation: Offer generates net profit above cost.")
         else:
-            st.warning("⚠️ **Low/Negative ROI:** Retention offer cost exceeds expected LTV recovery.")
+            st.warning("Low/Negative ROI: Retention offer cost exceeds expected LTV recovery.")
 
 # TAB 4: WHAT-IF CAMPAIGN SIMULATOR
 with tab4:
@@ -255,7 +254,6 @@ with tab4:
         risk_cutoff = st.slider("Target Minimum Risk Probability Cutoff", 0.10, 0.50, 0.20, 0.05)
         
     eligible_sim = df[(df['predicted_churn_prob'] >= risk_cutoff) & (df['expected_net_roi'] > 0)].copy()
-    # Sort by Knapsack ROI Density (net_roi / cost)
     eligible_sim = eligible_sim.sort_values(by='roi_density', ascending=False)
     eligible_sim['cum_cost'] = eligible_sim['offer_cost'].cumsum()
     budget_sim = eligible_sim[eligible_sim['cum_cost'] <= campaign_budget]
@@ -277,4 +275,4 @@ with tab4:
     )
     
     csv_data = budget_sim[['customer_id', 'card_tier', 'LIMIT_BAL', 'predicted_churn_prob', 'avg_monthly_spend', 'recommended_offer', 'offer_cost', 'expected_net_roi', 'roi_density']].to_csv(index=False).encode('utf-8')
-    st.download_button("📥 Download Real Account Recommendations CSV", data=csv_data, file_name="uci_retention_campaign_targets.csv", mime="text/csv")
+    st.download_button("Download Real Account Recommendations CSV", data=csv_data, file_name="uci_retention_campaign_targets.csv", mime="text/csv")

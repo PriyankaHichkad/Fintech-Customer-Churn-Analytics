@@ -1,16 +1,10 @@
-# 💳 FinTech Credit Card Churn & Retention Analytics Engine
+# FinTech Credit Card Churn & Retention Analytics Engine
 
 > **FinTech credit card churn analytics engine using real UCI Credit Card data (30,000 accounts), RFM segmentation, XGBoost + SHAP, unit economics (LTV/CAC), and interactive ROI strategy simulation.**
 
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
-[![Dataset](https://img.shields.io/badge/Dataset-UCI%20Credit%20Card-purple.svg)](https://archive.ics.uci.edu/ml/datasets/default+of+credit+card+clients)
-[![XGBoost](https://img.shields.io/badge/ML-XGBoost%20%2B%20SHAP-orange.svg)](https://xgboost.readthedocs.io/)
-[![Streamlit](https://img.shields.io/badge/Dashboard-Streamlit-red.svg)](https://streamlit.io/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-
 ---
 
-## 📌 Executive Summary
+## Executive Summary
 
 Credit card issuers generate revenue through **interchange fees (1.5%–2.5% per swipe)** and **annual fees**, but lose thousands in long-term profit when high-spending or high-limit cardholders churn/default.
 
@@ -22,7 +16,7 @@ Using real-world historical data from **30,000 credit card holders (UCI Credit C
 
 ---
 
-## 📈 Real Dataset Portfolio Financial Impact (30,000 Accounts)
+## Real Dataset Portfolio Financial Impact (30,000 Accounts)
 
 | Metric | Real Business Analytics Result |
 | :--- | :--- |
@@ -37,7 +31,7 @@ Using real-world historical data from **30,000 credit card holders (UCI Credit C
 
 ---
 
-## ⚙️ Data Flow & Architecture
+## Data Flow & Architecture
 
 ```
    Raw UCI Dataset       RFM + Churn Model      LTV & Cost Matrix      Strategy Dashboard
@@ -68,7 +62,7 @@ Using real-world historical data from **30,000 credit card holders (UCI Credit C
 
 ---
 
-## 📂 Repository Structure
+## Repository Structure
 
 ```
 Fintech-Customer-Churn-Analytics/
@@ -90,7 +84,7 @@ Fintech-Customer-Churn-Analytics/
 
 ---
 
-## 🚀 Quick Start Guide
+## Quick Start Guide
 
 ### 1. Installation
 ```bash
@@ -113,7 +107,7 @@ streamlit run app.py
 
 ---
 
-## 📊 Executive Presentation Deck
+## Executive Presentation Deck
 
 The repository includes a hand-crafted **8-Slide Executive PowerPoint Presentation** (`exports/FinTech_Churn_Retention_Strategy.pptx`) detailing:
 1. **Title & Headline Hook** (*30k real accounts, 3,481% simulated ROI / $174M net profit saved*)
@@ -127,5 +121,15 @@ The repository includes a hand-crafted **8-Slide Executive PowerPoint Presentati
 
 ---
 
-## 📜 License
-This project is open-source under the [MIT License](LICENSE).
+## Tools and Libraries Used
+
+* Python: https://www.python.org/
+* UCI Credit Card Dataset: https://archive.ics.uci.edu/ml/datasets/default+of+credit+card+clients
+* XGBoost: https://xgboost.readthedocs.io/
+* SHAP: https://shap.readthedocs.io/
+* Streamlit: https://streamlit.io/
+* Plotly: https://plotly.com/python/
+* Pandas: https://pandas.pydata.org/
+* Scikit-Learn: https://scikit-learn.org/
+* NumPy: https://numpy.org/
+* Python-PPTX: https://python-pptx.readthedocs.io/
