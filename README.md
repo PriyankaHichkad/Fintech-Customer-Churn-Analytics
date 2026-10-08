@@ -91,7 +91,7 @@ The campaign budget ($B = \$100,000$) is allocated by selecting accounts in desc
 ### 2. Predictive Machine Learning & TreeSHAP (`src/churn_model.py`)
 - **Demographic Exclusion for Fair Lending Practice:** Protected demographic attributes (`AGE`, `SEX`, `MARRIAGE`, `EDUCATION`) are explicitly excluded from model training inputs (though preserved in records for audit purposes).
 - **XGBoost Classifier:** Evaluated against baseline Logistic Regression on test set.
-- **Test Set Metrics:** XGBoost Test ROC-AUC: `0.7789` | Test PR-AUC: `0.5618` | Top 20% Decile Capture: `51.66%`.
+- **Test Set Metrics:** XGBoost Test ROC-AUC: `0.7789` | Test PR-AUC: `0.5618` | Baseline Logistic Regression AUC: `0.7670` | Top 20% Decile Capture: `51.66%` on a held-out test set.
 - **TreeSHAP Drivers:** Identifies maximum delinquency status (`max_delay_months`), inactivity recency (`days_since_last_txn`), support friction score, and credit utilization (`current_utilization`) as top empirical drivers. These features overlap heavily around delinquency and debt stress signals, demonstrating that recent repayment delay dominates default risk prediction.
 
 ### 3. Financial Retention Offer Matrix (`src/roi_engine.py`)
