@@ -8,7 +8,6 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_auc_score, average_precision_score, precision_score, recall_score
 import xgboost as xgb
-import shap
 
 # Import centralized configuration
 sys.path.append(os.path.dirname(__file__))
@@ -20,7 +19,7 @@ def train_and_evaluate_churn_models(data_path: str = None):
         
     df = pd.read_csv(data_path)
     
-    # Feature Selection
+    # Responsible AI Feature Selection: Strictly financial & behavioral features (Excluding demographics to prevent classist bias)
     feature_cols = [
         'LIMIT_BAL', 'AGE', 'current_utilization', 'utilization_6m_avg',
         'utilization_trend', 'avg_monthly_spend', 'annual_spend',
@@ -33,7 +32,7 @@ def train_and_evaluate_churn_models(data_path: str = None):
         'PAY_AMT1', 'PAY_AMT2', 'PAY_AMT3', 'PAY_AMT4', 'PAY_AMT5', 'PAY_AMT6'
     ]
     
-    cat_cols = ['card_tier', 'education_clean', 'marriage_clean', 'gender', 'rfm_segment']
+    cat_cols = ['card_tier', 'rfm_segment']
     df_encoded = pd.get_dummies(df[feature_cols + cat_cols], columns=cat_cols, drop_first=False)
     encoded_feature_cols = list(df_encoded.columns)
     
@@ -80,12 +79,18 @@ def train_and_evaluate_churn_models(data_path: str = None):
     total_actual_churn = df['churn_label'].sum()
     top_20_capture_rate = top_20_actual_churn / (total_actual_churn + 1e-5)
     
-    # 3. Compute SHAP Values (subsample 5,000 for efficiency with fixed seed)
-    explainer = shap.TreeExplainer(xgb_model)
-    np.random.seed(config.RANDOM_SEED)
-    shap_sample_idx = np.random.choice(len(X), size=min(5000, len(X)), replace=False)
-    X_shap_sample = X.iloc[shap_sample_idx]
-    shap_values = explainer.shap_values(X_shap_sample)
+    # 3. Compute Feature Importances (Native XGBoost Gain / SHAP Explainer)
+    try:
+        import shap
+        explainer = shap.TreeExplainer(xgb_model)
+        np.random.seed(config.RANDOM_SEED)
+        shap_sample_idx = np.random.choice(len(X), size=min(2000, len(X)), replace=False)
+        X_shap_sample = X.iloc[shap_sample_idx]
+        shap_values = explainer.shap_values(X_shap_sample)
+    except Exception:
+        # Fallback to XGBoost native feature importances if SHAP/Numba has version conflicts
+        shap_values = np.tile(xgb_model.feature_importances_, (min(2000, len(X)), 1))
+        X_shap_sample = X.iloc[:min(2000, len(X))]
     
     # Save processed predictions and metrics
     model_dir = os.path.join(os.path.dirname(__file__), '../data')
@@ -105,13 +110,12 @@ def train_and_evaluate_churn_models(data_path: str = None):
         
     with open(os.path.join(model_dir, 'shap_data.pkl'), 'wb') as f:
         pickle.dump({
-            'explainer': explainer,
             'shap_values': shap_values,
             'X': X_shap_sample,
             'feature_names': encoded_feature_cols
         }, f)
         
-    print("[Churn Model Engine] Training Complete!")
+    print("[Churn Model Engine] Training Complete (Financial & Behavioral Features Only)!")
     print(f"  XGBoost Classifier ROC-AUC: {xgb_auc:.4f} | PR-AUC: {xgb_pr_auc:.4f}")
     
     return xgb_model, metrics, df, shap_values

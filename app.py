@@ -113,13 +113,11 @@ st.divider()
 st.sidebar.header("Portfolio Filter Controls")
 selected_tiers = st.sidebar.multiselect("Card Tier (Credit Limit)", options=df['card_tier'].unique(), default=df['card_tier'].unique())
 selected_segments = st.sidebar.multiselect("RFM Segment", options=df['rfm_segment'].unique(), default=df['rfm_segment'].unique())
-selected_education = st.sidebar.multiselect("Education Level", options=df['education_clean'].unique(), default=df['education_clean'].unique())
 min_risk, max_risk = st.sidebar.slider("Predicted Risk Cutoff Range", 0.0, 1.0, (0.0, 1.0), 0.05)
 
 filtered_df = df[
     (df['card_tier'].isin(selected_tiers)) &
     (df['rfm_segment'].isin(selected_segments)) &
-    (df['education_clean'].isin(selected_education)) &
     (df['predicted_churn_prob'] >= min_risk) &
     (df['predicted_churn_prob'] <= max_risk)
 ]
@@ -192,7 +190,7 @@ with tab1:
     fig_scat = px.scatter(
         filtered_df, x='current_utilization', y='max_delay_months',
         color='predicted_churn_prob', size='LIMIT_BAL',
-        hover_data=['customer_id', 'card_tier', 'education_clean', 'baseline_ltv'],
+        hover_data=['customer_id', 'card_tier', 'baseline_ltv'],
         labels={'current_utilization': 'Credit Utilization Ratio (0.0 to 1.0+)', 'max_delay_months': 'Max Delay Months (PAY_0 to PAY_6)'},
         color_continuous_scale="Viridis"
     )
@@ -250,9 +248,8 @@ with tab3:
     
     col_a, col_b = st.columns(2)
     with col_a:
-        st.markdown("#### Account Demographics & Financial Metrics")
-        st.write(f"• **Age / Gender:** {cust_data['AGE']} yrs | {cust_data['gender']}")
-        st.write(f"• **Education / Marital Status:** {cust_data['education_clean']} | {cust_data['marriage_clean']}")
+        st.markdown("#### Account Financial & Behavioral Metrics")
+        st.write(f"• **Age:** {cust_data['AGE']} yrs")
         st.write(f"• **Credit Limit:** ${cust_data['LIMIT_BAL']:,}")
         st.write(f"• **Current Utilization Ratio:** {cust_data['current_utilization']:.1%}")
         st.write(f"• **Avg Monthly Bill / Payment:** ${cust_data['avg_monthly_spend']:,} bill | ${cust_data['avg_monthly_payment']:,} pay")
