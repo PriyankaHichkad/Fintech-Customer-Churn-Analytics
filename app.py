@@ -208,7 +208,8 @@ with tab2:
     mc4.metric("Top 20% Decile Capture", f"{metrics['top_20_capture_rate']:.1%}")
     
     st.markdown("---")
-    st.markdown("#### Top Empirical Drivers of Credit Risk (SHAP Feature Attribution)")
+    shap_title = "Top Empirical Drivers of Credit Risk (SHAP Feature Attribution)" if metrics.get('is_real_shap', False) else "Top Empirical Drivers of Credit Risk (XGBoost Feature Importance Gain)"
+    st.markdown(f"#### {shap_title}")
     
     shap_vals = shap_data['shap_values']
     feat_names = shap_data['feature_names']
@@ -219,7 +220,7 @@ with tab2:
     
     fig_shap = px.bar(
         shap_df, x='importance', y='feature', orientation='h',
-        labels={'importance': 'Mean SHAP Value (Impact on Risk Score)', 'feature': 'Feature Name'},
+        labels={'importance': 'Mean Feature Attribution Impact Score', 'feature': 'Feature Name'},
         color='importance', color_continuous_scale='Blues'
     )
     fig_shap.update_layout(template="plotly_white", height=420)
@@ -249,7 +250,6 @@ with tab3:
     col_a, col_b = st.columns(2)
     with col_a:
         st.markdown("#### Account Financial & Behavioral Metrics")
-        st.write(f"• **Age:** {cust_data['AGE']} yrs")
         st.write(f"• **Credit Limit:** ${cust_data['LIMIT_BAL']:,}")
         st.write(f"• **Current Utilization Ratio:** {cust_data['current_utilization']:.1%}")
         st.write(f"• **Avg Monthly Bill / Payment:** ${cust_data['avg_monthly_spend']:,} bill | ${cust_data['avg_monthly_payment']:,} pay")
@@ -277,7 +277,7 @@ with tab4:
     
     sim_col1, sim_col2 = st.columns(2)
     with sim_col1:
-        campaign_budget = st.slider("Campaign Retention Budget ($)", 25000, 2000000, 500000, 25000)
+        campaign_budget = st.slider("Campaign Retention Budget ($)", 10000, 500000, 100000, 10000)
     with sim_col2:
         risk_cutoff = st.slider("Target Minimum Risk Probability Cutoff", 0.10, 0.50, 0.20, 0.05)
         

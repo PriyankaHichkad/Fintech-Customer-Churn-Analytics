@@ -22,12 +22,13 @@ Using real-world historical data from **30,000 credit card holders (UCI Credit C
 | :--- | :--- |
 | **Total Real Accounts Evaluated** | **30,000 accounts** |
 | **Base Default/Churn Rate** | **22.12%** |
-| **Unmitigated At-Risk LTV Exposure** | **$118.6 Million** |
-| **Optimized Campaign Budget** | **$500,000.00** |
-| **Targeted High-Risk Accounts** | **3,870 / 30,000 (12.9%)** |
-| **Gross Retained LTV Saved** | **$174.5 Million** |
-| **Net Retained Profit Saved** | **$174.0 Million** |
-| **Portfolio Campaign Net ROI** | **3,481%** |
+| **Optimized Campaign Budget Cap** | **$100,000.00** |
+| **Targeted High-Risk Accounts** | **752 / 30,000 (2.5%)** |
+| **Gross Retained LTV Saved** | **$692,133.00** |
+| **Net Retained Profit Saved (Base)** | **$592,313.00** |
+| **Net Retained Profit Saved (50% Sensitivity)** | **$246,246.00** |
+| **Portfolio Campaign Net ROI (Base)** | **593.4%** |
+| **Portfolio Campaign Net ROI (Conservative)** | **246.7%** |
 
 ---
 
@@ -42,22 +43,24 @@ Using real-world historical data from **30,000 credit card holders (UCI Credit C
 ```
 
 ### 1. Real Data Cleaning & Feature Engineering (`src/feature_engineering.py`)
-- **Raw Data Cleaning:** Decodes `EDUCATION`, `MARRIAGE`, `SEX`, and `PAY_0`-`PAY_6` delay status codes.
+- **Currency Standardization:** Converts raw UCI credit limits and bill amounts from NTD to USD (1 USD = 30 NTD).
 - **6-Month Financial Ratios:**
   * `avg_monthly_spend`: Average bill amount across 6 billing statements.
   * `current_utilization`: $\text{BILL\_AMT1} / \text{LIMIT\_BAL}$.
   * `utilization_trend`: 6-month growth in credit line utilization.
   * `pay_to_bill_ratio`: Ratio of total payments vs total bills (distinguishing revolvers vs pay-in-full users).
   * `max_delay_months`: Maximum delinquency status across the 6-month window.
-- **RFM Matrix:** Quantile-based Recency (1–5), Frequency (1–5), and Monetary (1–5) scoring with deterministic seed=42.
+- **RFM Matrix:** Quantile-based Recency (1–5), Frequency (1–5), and Monetary (1–5) scoring with deterministic `seed=42`.
+- **Unit Economics:** Baseline LTV calculation capped conservatively at a **3-year max horizon**.
 
 ### 2. Predictive Machine Learning & SHAP (`src/churn_model.py`)
-- **XGBoost Classifier:** Evaluated against baseline Logistic Regression on 30,000 real accounts.
-- **XGBoost ROC-AUC:** `0.7826` | **PR-AUC:** `0.5636`.
+- **ECOA Fair-Lending Compliance:** Explicitly excludes `AGE`, `SEX`, `MARRIAGE`, and `EDUCATION` from model features.
+- **XGBoost Classifier:** Evaluated against baseline Logistic Regression on test set.
+- **Test Set Metrics:** XGBoost Test ROC-AUC: `0.7789` | Test PR-AUC: `0.5618` | Top 20% Decile Capture: `51.66%`.
 - **SHAP Drivers:** Identifies recent payment delay (`PAY_0`), current utilization, credit limit, and payment-to-bill deficit as primary churn/default drivers.
 
 ### 3. Financial Retention Offer Matrix (`src/roi_engine.py`)
-- **Offers Evaluated:** Fee Waiver, 2x Cashback Points Boost, 0% APR Cut / Delinquency Relief, VIP Perks.
+- **Offers Evaluated:** Fee Waiver, 2x Cashback Points Boost, APR Cut / Delinquency Relief, VIP Perks.
 - **Knapsack Optimization:** Allocates campaign budget by net ROI density ($\text{Net ROI} / \text{Cost}$) to maximize portfolio return.
 
 ---
@@ -110,12 +113,12 @@ streamlit run app.py
 ## Executive Presentation Deck
 
 The repository includes a hand-crafted **8-Slide Executive PowerPoint Presentation** (`exports/FinTech_Churn_Retention_Strategy.pptx`) detailing:
-1. **Title & Headline Hook** (*30k real accounts, 3,481% simulated ROI / $174M net profit saved*)
+1. **Title & Headline Hook** (*30k real accounts, 593.4% simulated ROI / $592k net profit saved*)
 2. **Business Problem & Interchange Fee Economics**
 3. **Data Pipeline & 6-Month Time-Series Feature Architecture**
 4. **XGBoost Model Performance & Top SHAP Default Triggers**
 5. **From Prediction to Economics (The LTV/CAC Bridge)**
-6. **ROI Simulation Results ($500k Budget Cap)**
+6. **ROI Simulation Results ($100k Budget Cap)**
 7. **Strategic Recommendations & A/B Testing Plan**
 8. **Interactive Strategy Dashboard Showcase**
 

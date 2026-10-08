@@ -1,25 +1,25 @@
 import pandas as pd
 import numpy as np
 import os
-import sys
 
-# Import centralized configuration
-sys.path.append(os.path.dirname(__file__))
-import config
+try:
+    from . import config
+except ImportError:
+    import config
 
 def simulate_retention_offers(df: pd.DataFrame, budget_cap: float = None) -> pd.DataFrame:
     """
     Simulates ROI for 4 retention offer strategies across 30,000 real UCI credit card accounts.
     Uses Knapsack-style ROI Density Optimization (sorting by Net ROI per dollar spent)
-    to allocate campaign budget for maximum financial return density.
+    with 3-year capped LTV horizons and conservative USD unit economics.
     """
     if budget_cap is None:
-        budget_cap = config.DEFAULT_CAMPAIGN_BUDGET
+        budget_cap = config.DEFAULT_CAMPAIGN_BUDGET_USD
         
     df = df.copy()
     discount_rate = config.DISCOUNT_RATE
     
-    # 1. Offer Definitions & Costs
+    # 1. Offer Costs (USD)
     df['cost_fee_waiver'] = np.maximum(config.OFFER_COSTS['fee_waiver_min'], df['annual_fee'])
     df['cost_points_boost'] = np.round(df['avg_monthly_spend'] * 12 * config.OFFER_COSTS['points_boost_pct'], 2)
     df['cost_apr_cut'] = config.OFFER_COSTS['apr_cut_fixed']
@@ -27,13 +27,13 @@ def simulate_retention_offers(df: pd.DataFrame, budget_cap: float = None) -> pd.
     
     p_baseline = np.clip(df['predicted_churn_prob'], 0.01, 0.95)
     
-    # 2. Probability Reductions (Simulated Treatment Effect Assumptions)
+    # 2. Probability Reductions (Conservative Treatment Effect Assumptions)
     eff_cfg = config.OFFER_EFFECTIVENESS
     
     eff_fee_waiver = np.where((df['annual_fee'] > 0) | (df['delinquency_count'] > 0),
                               np.minimum(eff_cfg['fee_waiver']['max_reduction'], p_baseline * eff_cfg['fee_waiver']['multiplier']), 0.0)
     
-    eff_points_boost = np.where(df['avg_monthly_spend'] >= 2000,
+    eff_points_boost = np.where(df['avg_monthly_spend'] >= 1000,
                                np.minimum(eff_cfg['points_boost']['max_reduction'], p_baseline * eff_cfg['points_boost']['multiplier']), 0.0)
     
     eff_apr_cut = np.where((df['max_delay_months'] > 0) | (df['current_utilization'] > 0.50),
@@ -42,9 +42,10 @@ def simulate_retention_offers(df: pd.DataFrame, budget_cap: float = None) -> pd.
     eff_vip_perks = np.where(df['card_tier'].isin(['Platinum', 'Black']),
                              np.minimum(eff_cfg['vip_perks']['max_reduction'], p_baseline * eff_cfg['vip_perks']['multiplier']), 0.0)
     
-    # 3. Calculate LTV gain for each offer
+    # 3. LTV Calculation (Capped at 3-Year Horizon)
     def calc_ltv(margin, churn_p):
-        return margin * (1.0 / (churn_p + discount_rate))
+        effective_years = np.minimum(config.LTV_MAX_HORIZON_YEARS, 1.0 / (churn_p + discount_rate))
+        return margin * effective_years
         
     baseline_ltv = calc_ltv(df['annual_net_margin'], p_baseline)
     df['baseline_ltv'] = np.round(baseline_ltv, 2)
@@ -93,11 +94,10 @@ def simulate_retention_offers(df: pd.DataFrame, budget_cap: float = None) -> pd.
     df['offer_cost'] = [r[2] for r in res]
     df['retained_ltv_gain'] = [r[3] for r in res]
     
-    # 5. Knapsack ROI Density Optimization (Sort by Net ROI per dollar spent)
+    # 5. Knapsack ROI Density Optimization
     df['roi_density'] = np.round(df['expected_net_roi'] / (df['offer_cost'] + 1e-5), 4)
     
     eligible = df[df['expected_net_roi'] > 0].copy()
-    # Sort by ROI Density (value density = net_roi / cost) for optimal knapsack allocation
     eligible = eligible.sort_values(by='roi_density', ascending=False)
     
     eligible['cum_cost'] = eligible['offer_cost'].cumsum()
@@ -109,15 +109,25 @@ def simulate_retention_offers(df: pd.DataFrame, budget_cap: float = None) -> pd.
     budget_exceeded_idx = eligible[~eligible['within_budget']].index
     df.loc[budget_exceeded_idx, 'recommended_offer'] = 'No Offer (Budget Exceeded)'
     
-    print("[ROI Simulation Engine] Knapsack ROI Density Optimization Complete!")
+    # 6. Sensitivity Analysis (50% Conservative Treatment Effect Scenario)
+    targeted_df = df[df['campaign_target']].copy()
+    total_cost = targeted_df['offer_cost'].sum()
+    gross_ltv = targeted_df['retained_ltv_gain'].sum()
+    net_profit = targeted_df['expected_net_roi'].sum()
+    base_roi = (net_profit / (total_cost + 1e-5)) * 100
+    
+    # 50% effectiveness sensitivity scenario
+    cons_gross_ltv = gross_ltv * 0.50
+    cons_net_profit = cons_gross_ltv - total_cost
+    cons_roi = (cons_net_profit / (total_cost + 1e-5)) * 100
+    
+    print("[ROI Simulation Engine - Capped 3-Year USD LTV] Simulation Complete!")
     print(f"  Total Portfolio Accounts:    {len(df):,}")
     print(f"  Campaign Targeted Customers: {df['campaign_target'].sum():,} / {len(df):,}")
-    print(f"  Total Campaign Cost:         ${df[df['campaign_target']]['offer_cost'].sum():,.2f}")
-    print(f"  Total Gross LTV Saved:       ${df[df['campaign_target']]['retained_ltv_gain'].sum():,.2f}")
-    print(f"  Total Net Profit Saved:      ${df[df['campaign_target']]['expected_net_roi'].sum():,.2f}")
-    
-    ret_roi = (df[df['campaign_target']]['expected_net_roi'].sum() / (df[df['campaign_target']]['offer_cost'].sum() + 1e-5)) * 100
-    print(f"  Portfolio Campaign ROI:      {ret_roi:.1f}%")
+    print(f"  Total Campaign Cost:         ${total_cost:,.2f}")
+    print(f"  Gross Retained LTV Saved:    ${gross_ltv:,.2f}")
+    print(f"  Net Profit Saved (Base):     ${net_profit:,.2f} (ROI: {base_roi:.1f}%)")
+    print(f"  Net Profit Saved (50% Sens): ${cons_net_profit:,.2f} (ROI: {cons_roi:.1f}%)")
     
     return df
 
@@ -131,9 +141,10 @@ if __name__ == '__main__':
     else:
         df_pred = pd.read_csv(data_path)
         
-    df_sim = simulate_retention_offers(df_pred, budget_cap=config.DEFAULT_CAMPAIGN_BUDGET)
+    df_sim = simulate_retention_offers(df_pred, budget_cap=config.DEFAULT_CAMPAIGN_BUDGET_USD)
     out_path = os.path.join(os.path.dirname(__file__), '../data/retention_roi_simulated.csv')
     df_sim.to_csv(out_path, index=False)
     
     export_path = os.path.join(os.path.dirname(__file__), '../exports/customer_retention_recommendations.csv')
-    df_sim[['customer_id', 'card_tier', 'LIMIT_BAL', 'avg_monthly_spend', 'predicted_churn_prob', 'rfm_segment', 'baseline_ltv', 'recommended_offer', 'offer_cost', 'expected_net_roi', 'roi_density']].to_csv(export_path, index=False)
+    df_sim[['customer_id', 'card_tier', 'LIMIT_BAL_USD', 'avg_monthly_spend', 'predicted_churn_prob', 'rfm_segment', 'baseline_ltv', 'recommended_offer', 'offer_cost', 'expected_net_roi', 'roi_density']].to_csv(export_path, index=False)
+    print(f"[ROI Simulation Engine] Exported recommendations to {export_path}")
