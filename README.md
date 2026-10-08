@@ -20,7 +20,7 @@ Using real-world historical data from **30,000 credit card holders (UCI Credit C
 
 | Metric | Simulated Campaign Impact |
 | :--- | :--- |
-| **Total Real Accounts Evaluated** | **30,000 accounts** |
+| **Accounts Evaluated (UCI Dataset)** | **30,000 accounts** |
 | **Base Default/Churn Rate** | **22.12%** |
 | **Optimized Campaign Budget Cap** | **$100,000.00** |
 | **Targeted High-Risk Accounts** | **752 / 30,000 (2.5%)** |

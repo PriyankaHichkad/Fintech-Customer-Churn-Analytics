@@ -303,4 +303,4 @@ with tab4:
     )
     
     csv_data = budget_sim[['customer_id', 'card_tier', 'LIMIT_BAL_USD', 'predicted_churn_prob', 'avg_monthly_spend', 'recommended_offer', 'offer_cost', 'expected_net_roi', 'roi_density']].to_csv(index=False).encode('utf-8')
-    st.download_button("Download Real Account Recommendations CSV", data=csv_data, file_name="uci_retention_campaign_targets.csv", mime="text/csv")
+    st.download_button("Download Campaign Target Recommendations CSV", data=csv_data, file_name="uci_retention_campaign_targets.csv", mime="text/csv")

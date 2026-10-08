@@ -92,13 +92,20 @@ def train_and_evaluate_churn_models(data_path: str = None):
         explainer = shap.TreeExplainer(xgb_model)
         shap_values = explainer.shap_values(X_shap_sample)
         is_real_shap = True
-    except Exception as e:
-        dmat = xgb.DMatrix(X_shap_sample)
-        # XGBoost C++ native TreeSHAP calculation (Lundberg TreeSHAP algorithm)
-        contribs = xgb_model.get_booster().predict(dmat, pred_contribs=True)
-        shap_values = contribs[:, :-1]
-        is_real_shap = True
-        print("[Churn Model Engine] Generated Real C++ TreeSHAP values natively via XGBoost booster.")
+        print("[Churn Model Engine] Calculated TreeSHAP values via Python shap.TreeExplainer package.")
+    except Exception as e1:
+        try:
+            dmat = xgb.DMatrix(X_shap_sample)
+            # XGBoost C++ native TreeSHAP calculation (Lundberg TreeSHAP algorithm)
+            contribs = xgb_model.get_booster().predict(dmat, pred_contribs=True)
+            shap_values = contribs[:, :-1]
+            is_real_shap = True
+            print(f"[Churn Model Engine] Calculated Real C++ TreeSHAP values natively via XGBoost booster (shap package skipped: {e1}).")
+        except Exception as e2:
+            print(f"[Churn Model Engine Warning] Native TreeSHAP failed ({e2}). Using XGBoost Feature Importance Gain matrix fallback.")
+            raw_imp = xgb_model.feature_importances_
+            shap_values = np.outer(np.ones(len(X_shap_sample)), raw_imp)
+            is_real_shap = False
         
     # Save processed predictions and metrics
     model_dir = os.path.join(os.path.dirname(__file__), '../data')
