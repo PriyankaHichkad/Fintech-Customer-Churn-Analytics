@@ -43,7 +43,7 @@ Using real-world historical data from **30,000 credit card holders (UCI Credit C
 ```
 
 ### 1. Real Data Cleaning & Feature Engineering (`src/feature_engineering.py`)
-- **Currency Standardization:** Converts raw UCI credit limits and bill amounts from NTD to USD (1 USD = 30 NTD).
+- **Currency Standardization:** Converts raw UCI credit limits and bill amounts from NTD to USD ($1\text{ USD} = 30\text{ NTD}$).
 - **6-Month Financial Ratios:**
   * `avg_monthly_spend`: Average bill amount across 6 billing statements.
   * `current_utilization`: $\text{BILL\_AMT1} / \text{LIMIT\_BAL}$.
@@ -51,7 +51,37 @@ Using real-world historical data from **30,000 credit card holders (UCI Credit C
   * `pay_to_bill_ratio`: Ratio of total payments vs total bills (distinguishing revolvers vs pay-in-full users).
   * `max_delay_months`: Maximum delinquency status across the 6-month window.
 - **RFM Matrix:** Quantile-based Recency (1–5), Frequency (1–5), and Monetary (1–5) scoring with deterministic `seed=42`.
-- **Unit Economics:** Baseline LTV calculation capped conservatively at a **3-year max horizon**.
+
+---
+
+## Financial Unit Economics & Mathematical Formulations
+
+To ensure rigorous financial modeling, the engine uses explicit unit economic equations across all 30,000 accounts:
+
+### 1. Annual Net Margin Equation
+$$\text{Annual Net Margin} = (\text{Interchange Fees} + \text{Annual Fee} + \text{Interest Income}) - (\text{Rewards Cost} + \text{Servicing Cost})$$
+
+Where:
+- $\text{Interchange Fees} = \text{Annual Spend} \times \text{Interchange Rate } (1.5\% \text{ to } 2.5\% \text{ by card tier})$
+- $\text{Annual Fee} = \$0 \text{ (Standard)}, \$50 \text{ (Gold)}, \$95 \text{ (Platinum)}, \$250 \text{ (Black)}$
+- $\text{Interest Income} = \text{LIMIT\_BAL\_USD} \times \text{Utilization} \times 18\% \times \mathbb{I}(\text{pay\_to\_bill\_ratio} < 0.90)$
+- $\text{Rewards Cost} = \text{Annual Spend} \times 1.5\%$
+- $\text{Servicing Cost} = \$50.00 + (\text{delinquency\_count} \times \$20.00)$
+
+### 2. Baseline Customer Lifetime Value (LTV)
+Customer horizon is conservatively capped at a **3.0-year ceiling** to avoid infinite horizon compounding:
+$$\text{Effective LTV Horizon (Years)} = \min\left(3.0, \frac{1}{\text{Churn Prob} + \text{Discount Rate (10\%)}}\right)$$
+$$\text{Baseline LTV} = \text{Annual Net Margin} \times \text{Effective LTV Horizon}$$
+
+### 3. Retention Offer ROI & Knapsack Density Optimization
+For each candidate retention offer $k \in \{\text{Fee Waiver}, \text{2x Points Boost}, \text{APR Cut}, \text{VIP Perks}\}$:
+$$\text{Gross Retained LTV Saved}_{i,k} = \text{Annual Net Margin}_i \times \left( \text{Horizon}_{\text{New}} - \text{Horizon}_{\text{Baseline}} \right)$$
+$$\text{Expected Net ROI}_{i,k} = \text{Gross Retained LTV Saved}_{i,k} - \text{Offer Cost}_k$$
+$$\text{ROI Density Score}_{i,k} = \frac{\text{Expected Net ROI}_{i,k}}{\text{Offer Cost}_k}$$
+
+The campaign budget ($B = \$100,000$) is allocated by selecting accounts in descending order of $\text{ROI Density Score}$ until total offer cost reaches $B$.
+
+---
 
 ### 2. Predictive Machine Learning & SHAP (`src/churn_model.py`)
 - **ECOA Fair-Lending Compliance:** Explicitly excludes `AGE`, `SEX`, `MARRIAGE`, and `EDUCATION` from model features.
