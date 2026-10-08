@@ -16,9 +16,9 @@ Using real-world historical data from **30,000 credit card holders (UCI Credit C
 
 ---
 
-## Real Dataset Portfolio Financial Impact (30,000 Accounts)
+## Portfolio Campaign Financial Impact (Simulated 30,000 Accounts)
 
-| Metric | Real Business Analytics Result |
+| Metric | Simulated Campaign Impact |
 | :--- | :--- |
 | **Total Real Accounts Evaluated** | **30,000 accounts** |
 | **Base Default/Churn Rate** | **22.12%** |
@@ -29,6 +29,11 @@ Using real-world historical data from **30,000 credit card holders (UCI Credit C
 | **Net Retained Profit Saved (50% Sensitivity)** | **$246,246.00** |
 | **Portfolio Campaign Net ROI (Base)** | **593.4%** |
 | **Portfolio Campaign Net ROI (Conservative)** | **246.7%** |
+
+> **Methodology Notes:**
+> 1. **Data Scope:** The underlying portfolio data comprises 30,000 real credit card account statements from the UCI Credit Card Dataset. Campaign targeting and ROI figures represent simulated strategy interventions.
+> 2. **Sensitivity Haircut:** The 50% sensitivity scenario applies a direct 50% haircut to gross retained LTV savings to stress-test treatment effect assumptions under real-world friction.
+> 3. **Full-Portfolio Scoring:** Model predictions are scored across all 30,000 portfolio accounts downstream for full portfolio simulation (including training records, making downstream ROI figures slightly optimistic).
 
 ---
 
@@ -46,7 +51,7 @@ Using real-world historical data from **30,000 credit card holders (UCI Credit C
 - **Currency Standardization:** Converts raw UCI credit limits and bill amounts from NTD to USD ($1\text{ USD} = 30\text{ NTD}$).
 - **6-Month Financial Ratios:**
   * `avg_monthly_spend`: Average bill amount across 6 billing statements.
-  * `current_utilization`: $\text{BILL\_AMT1} / \text{LIMIT\_BAL}$.
+  * `current_utilization`: $\text{BILL\_AMT1} / \text{LIMIT\_BAL\_USD}$.
   * `utilization_trend`: 6-month growth in credit line utilization.
   * `pay_to_bill_ratio`: Ratio of total payments vs total bills (distinguishing revolvers vs pay-in-full users).
   * `max_delay_months`: Maximum delinquency status across the 6-month window.
@@ -63,7 +68,7 @@ $$\text{Annual Net Margin} = (\text{Interchange Fees} + \text{Annual Fee} + \tex
 
 Where:
 - $\text{Interchange Fees} = \text{Annual Spend} \times \text{Interchange Rate } (1.5\% \text{ to } 2.5\% \text{ by card tier})$
-- $\text{Annual Fee} = \$0 \text{ (Standard)}, \$50 \text{ (Gold)}, \$95 \text{ (Platinum)}, \$250 \text{ (Black)}$
+- $\text{Annual Fee} = \$0 \text{ (Standard)}, \$95 \text{ (Gold)}, \$295 \text{ (Platinum)}, \$495 \text{ (Black)}$
 - $\text{Interest Income} = \text{LIMIT\_BAL\_USD} \times \text{Utilization} \times 18\% \times \mathbb{I}(\text{pay\_to\_bill\_ratio} < 0.90)$
 - $\text{Rewards Cost} = \text{Annual Spend} \times 1.5\%$
 - $\text{Servicing Cost} = \$50.00 + (\text{delinquency\_count} \times \$20.00)$
@@ -83,14 +88,14 @@ The campaign budget ($B = \$100,000$) is allocated by selecting accounts in desc
 
 ---
 
-### 2. Predictive Machine Learning & SHAP (`src/churn_model.py`)
-- **ECOA Fair-Lending Compliance:** Explicitly excludes `AGE`, `SEX`, `MARRIAGE`, and `EDUCATION` from model features.
+### 2. Predictive Machine Learning & TreeSHAP (`src/churn_model.py`)
+- **Demographic Exclusion for Fair Lending Practice:** Protected demographic attributes (`AGE`, `SEX`, `MARRIAGE`, `EDUCATION`) are explicitly excluded from model training inputs (though preserved in records for audit purposes).
 - **XGBoost Classifier:** Evaluated against baseline Logistic Regression on test set.
 - **Test Set Metrics:** XGBoost Test ROC-AUC: `0.7789` | Test PR-AUC: `0.5618` | Top 20% Decile Capture: `51.66%`.
-- **SHAP Drivers:** Identifies recent payment delay (`PAY_0`), current utilization, credit limit, and payment-to-bill deficit as primary churn/default drivers.
+- **TreeSHAP Drivers:** Identifies maximum delinquency status (`max_delay_months`), inactivity recency (`days_since_last_txn`), support friction score, and credit utilization (`current_utilization`) as top empirical drivers. These features overlap heavily around delinquency and debt stress signals, demonstrating that recent repayment delay dominates default risk prediction.
 
 ### 3. Financial Retention Offer Matrix (`src/roi_engine.py`)
-- **Offers Evaluated:** Fee Waiver, 2x Cashback Points Boost, APR Cut / Delinquency Relief, VIP Perks.
+- **Offers Evaluated:** Fee Waiver ($95–$495), 2x Cashback Points Boost, APR Cut / Delinquency Relief, VIP Perks.
 - **Knapsack Optimization:** Allocates campaign budget by net ROI density ($\text{Net ROI} / \text{Cost}$) to maximize portfolio return.
 
 ---

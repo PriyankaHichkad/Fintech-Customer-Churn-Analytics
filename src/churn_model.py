@@ -93,10 +93,12 @@ def train_and_evaluate_churn_models(data_path: str = None):
         shap_values = explainer.shap_values(X_shap_sample)
         is_real_shap = True
     except Exception as e:
-        print(f"[Churn Model Engine Warning] SHAP TreeExplainer skipped due to environment version mismatch ({e}). Using XGBoost Feature Importance Gain matrix.")
-        raw_imp = xgb_model.feature_importances_
-        # Generate directional feature impact matrix matching XGBoost importance gain
-        shap_values = np.outer(np.ones(len(X_shap_sample)), raw_imp)
+        dmat = xgb.DMatrix(X_shap_sample)
+        # XGBoost C++ native TreeSHAP calculation (Lundberg TreeSHAP algorithm)
+        contribs = xgb_model.get_booster().predict(dmat, pred_contribs=True)
+        shap_values = contribs[:, :-1]
+        is_real_shap = True
+        print("[Churn Model Engine] Generated Real C++ TreeSHAP values natively via XGBoost booster.")
         
     # Save processed predictions and metrics
     model_dir = os.path.join(os.path.dirname(__file__), '../data')

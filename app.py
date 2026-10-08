@@ -189,7 +189,7 @@ with tab1:
     st.markdown("#### Credit Line Utilization vs. Repayment Delinquency")
     fig_scat = px.scatter(
         filtered_df, x='current_utilization', y='max_delay_months',
-        color='predicted_churn_prob', size='LIMIT_BAL',
+        color='predicted_churn_prob', size='LIMIT_BAL_USD',
         hover_data=['customer_id', 'card_tier', 'baseline_ltv'],
         labels={'current_utilization': 'Credit Utilization Ratio (0.0 to 1.0+)', 'max_delay_months': 'Max Delay Months (PAY_0 to PAY_6)'},
         color_continuous_scale="Viridis"
@@ -208,7 +208,7 @@ with tab2:
     mc4.metric("Top 20% Decile Capture", f"{metrics['top_20_capture_rate']:.1%}")
     
     st.markdown("---")
-    shap_title = "Top Empirical Drivers of Credit Risk (SHAP Feature Attribution)" if metrics.get('is_real_shap', False) else "Top Empirical Drivers of Credit Risk (XGBoost Feature Importance Gain)"
+    shap_title = "Top Empirical Drivers of Credit Risk (TreeSHAP Feature Attribution)" if metrics.get('is_real_shap', False) else "Top Empirical Drivers of Credit Risk (XGBoost Feature Importance Gain)"
     st.markdown(f"#### {shap_title}")
     
     shap_vals = shap_data['shap_values']
@@ -220,7 +220,7 @@ with tab2:
     
     fig_shap = px.bar(
         shap_df, x='importance', y='feature', orientation='h',
-        labels={'importance': 'Mean Feature Attribution Impact Score', 'feature': 'Feature Name'},
+        labels={'importance': 'Mean Absolute SHAP Value (Impact on Risk Score)', 'feature': 'Feature Name'},
         color='importance', color_continuous_scale='Blues'
     )
     fig_shap.update_layout(template="plotly_white", height=420)
@@ -228,7 +228,7 @@ with tab2:
     
     st.markdown("""
     <div class="takeaway-box">
-        <strong>Stakeholder Takeaway:</strong> Recent Payment Delay (PAY_0), 6-Month Utilization, Credit Limit, and Payment-to-Bill Deficits are the primary signals driving account risk. Tailored offers addressing interest and fee friction directly lower these risk drivers.
+        <strong>Stakeholder Takeaway:</strong> Delinquency Escalation (max_delay_months), Inactivity Recency (days_since_last_txn), Support Friction, and Credit Line Utilization (current_utilization) are the top empirical drivers. These features overlap heavily around delinquency and debt stress signals, demonstrating that recent payment delay dominates default prediction.
     </div>
     """, unsafe_allow_html=True)
 
@@ -250,7 +250,7 @@ with tab3:
     col_a, col_b = st.columns(2)
     with col_a:
         st.markdown("#### Account Financial & Behavioral Metrics")
-        st.write(f"• **Credit Limit:** ${cust_data['LIMIT_BAL']:,}")
+        st.write(f"• **Credit Limit (USD):** ${cust_data['LIMIT_BAL_USD']:,.0f}")
         st.write(f"• **Current Utilization Ratio:** {cust_data['current_utilization']:.1%}")
         st.write(f"• **Avg Monthly Bill / Payment:** ${cust_data['avg_monthly_spend']:,} bill | ${cust_data['avg_monthly_payment']:,} pay")
         st.write(f"• **Pay-to-Bill Ratio:** {cust_data['pay_to_bill_ratio']:.2f}x")
@@ -298,9 +298,9 @@ with tab4:
     st.markdown("---")
     st.markdown("#### Targeted Account Recommendations List")
     st.dataframe(
-        budget_sim[['customer_id', 'card_tier', 'LIMIT_BAL', 'predicted_churn_prob', 'avg_monthly_spend', 'recommended_offer', 'offer_cost', 'expected_net_roi', 'roi_density']],
+        budget_sim[['customer_id', 'card_tier', 'LIMIT_BAL_USD', 'predicted_churn_prob', 'avg_monthly_spend', 'recommended_offer', 'offer_cost', 'expected_net_roi', 'roi_density']],
         use_container_width=True
     )
     
-    csv_data = budget_sim[['customer_id', 'card_tier', 'LIMIT_BAL', 'predicted_churn_prob', 'avg_monthly_spend', 'recommended_offer', 'offer_cost', 'expected_net_roi', 'roi_density']].to_csv(index=False).encode('utf-8')
+    csv_data = budget_sim[['customer_id', 'card_tier', 'LIMIT_BAL_USD', 'predicted_churn_prob', 'avg_monthly_spend', 'recommended_offer', 'offer_cost', 'expected_net_roi', 'roi_density']].to_csv(index=False).encode('utf-8')
     st.download_button("Download Real Account Recommendations CSV", data=csv_data, file_name="uci_retention_campaign_targets.csv", mime="text/csv")
