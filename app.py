@@ -21,27 +21,6 @@ st.markdown("""
         background-color: #F8FAFC;
     }
     
-    /* Header Styling */
-    .executive-header {
-        background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
-        padding: 24px 30px;
-        border-radius: 14px;
-        color: #FFFFFF;
-        margin-bottom: 24px;
-        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
-    }
-    .executive-header h1 {
-        color: #FFFFFF !important;
-        font-size: 1.85rem !important;
-        font-weight: 700 !important;
-        margin-bottom: 6px !important;
-    }
-    .executive-header p {
-        color: #94A3B8 !important;
-        font-size: 0.95rem !important;
-        margin: 0 !important;
-    }
-    
     /* Metric Cards */
     div[data-testid="stMetric"] {
         background-color: #FFFFFF !important;
@@ -125,13 +104,10 @@ def load_data():
 
 df, metrics, shap_data = load_data()
 
-# Header Banner
-st.markdown("""
-<div class="executive-header">
-    <h1>FinTech Credit Card Churn & Retention Analytics Engine</h1>
-    <p>Executive Strategy & Decision-Support Dashboard | Portfolio Analysis of 30,000 Accounts</p>
-</div>
-""", unsafe_allow_html=True)
+# Clean Native Header
+st.title("FinTech Credit Card Churn & Retention Analytics Engine")
+st.caption("Executive Strategy & Decision-Support Dashboard | Portfolio Analysis of 30,000 Real UCI Accounts")
+st.divider()
 
 # Sidebar Navigation & Filters
 st.sidebar.header("Portfolio Filter Controls")
@@ -231,7 +207,7 @@ with tab2:
     mc1.metric("XGBoost Model ROC-AUC", f"{metrics['xgb_auc']:.4f}")
     mc2.metric("XGBoost PR-AUC", f"{metrics['xgb_pr_auc']:.4f}")
     mc3.metric("Baseline Logistic Reg AUC", f"{metrics['lr_auc']:.4f}")
-    mc4.metric("Top 20% Risk Decile Capture", f"{metrics['top_20_capture_rate']:.1%}")
+    mc4.metric("Top 20% Decile Capture", f"{metrics['top_20_capture_rate']:.1%}")
     
     st.markdown("---")
     st.markdown("#### Top Empirical Drivers of Credit Risk (SHAP Feature Attribution)")
