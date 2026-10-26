@@ -175,3 +175,9 @@ The repository includes a hand-crafted **8-Slide Executive PowerPoint Presentati
 * Scikit-Learn: https://scikit-learn.org/
 * NumPy: https://numpy.org/
 * Python-PPTX: https://python-pptx.readthedocs.io/
+
+---
+
+## Author
+
+* **Priyanka Hichkad** - [@PriyankaHichkad](https://github.com/PriyankaHichkad)
