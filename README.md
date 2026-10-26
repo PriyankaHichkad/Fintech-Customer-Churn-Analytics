@@ -30,10 +30,14 @@ Using real-world historical data from **30,000 credit card holders (UCI Credit C
 | **Portfolio Campaign Net ROI (Base)** | **593.4%** |
 | **Portfolio Campaign Net ROI (Conservative)** | **246.7%** |
 
-> **Methodology Notes:**
-> 1. **Data Scope:** The underlying portfolio data comprises 30,000 real credit card account statements from the UCI Credit Card Dataset. Campaign targeting and ROI figures represent simulated strategy interventions.
-> 2. **Sensitivity Haircut:** The 50% sensitivity scenario applies a direct 50% haircut to gross retained LTV savings to stress-test treatment effect assumptions under real-world friction.
-> 3. **Full-Portfolio Scoring:** Model predictions are scored across all 30,000 portfolio accounts downstream for full portfolio simulation (including training records, making downstream ROI figures slightly optimistic).
+> **Methodology Notes & Analytical Disclosures:**
+> 1. **Default Proxy for Churn:** The UCI target represents 30-day payment default (`default.payment.next.month`), not contractual account closure or voluntary product abandonment. In this engine, payment default serves as a financial-distress risk proxy to model proactive retention and loss-mitigation decisions. In production banking, voluntary churn (attrition) and involuntary churn (delinquency/charge-off) require distinct operational treatments.
+> 2. **Scenario Uplift Assumptions:** Retention offer risk reductions are modeled using baseline effectiveness multipliers rather than observed uplift from randomized trials. Downstream returns (including the 246.7% conservative estimate) are scenario projections; live deployment requires randomized controlled A/B testing or causal uplift modeling (e.g. CausalML) to measure incremental customer response.
+> 3. **Full-Portfolio Scoring vs. Test Set Evaluation:** The reported model accuracy metrics (XGBoost Test ROC-AUC: 0.7789, Test PR-AUC: 0.5618, Top 20% Capture: 51.66%) are calculated strictly on the held-out 25% test set. Downstream campaign simulation scores all 30,000 historical accounts to evaluate book-wide capital allocation. Production deployments would use cross-validated out-of-fold (OOF) scoring or prospective out-of-time (OOT) validation cohorts.
+> 4. **Greedy Knapsack Heuristic:** Portfolio budget allocation implements Dantzig's greedy ROI-density heuristic ($\text{Net ROI Density} = \text{Expected Net ROI} / \text{Cost}$) with a two-stage rule (each customer pre-selects their highest net-value offer first). This is a practical approximation heuristic rather than an exact multi-choice integer linear programming (ILP) global optimizer.
+> 5. **Synthetic Behavioral Proxies:** Because raw UCI credit records lack itemized point-of-sale transaction timestamps, `days_since_last_txn` and transaction counts are engineered proxies derived from payment timeliness (`PAY_0`) and billing amounts. Their high TreeSHAP attribution directly reflects the predictive dominance of repayment delay signals.
+> 6. **Statement Balance as Spend Proxy:** Annual spending and interchange revenues are proxied from 6-month average statement bill balances (`BILL_AMT1-6`). In production card ledgers, interchange and rewards are computed directly on cleared purchase authorizations, excluding revolving balances, finance charges, and late fees.
+> 7. **LTV Horizon Formulation:** Customer LTV is modeled via an annualized capitalized retention heuristic capped at a 3.0-year horizon ($LTV = \text{Margin} \times \min(3.0, 1 / (p + d))$) to avoid over-crediting long-tenured revolvers, serving as a valuation proxy prior to full multi-period survival-discounted cash flow (DCF) modeling.
 
 ---
 

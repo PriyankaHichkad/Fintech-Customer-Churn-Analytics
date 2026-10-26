@@ -10,8 +10,14 @@ except ImportError:
 def simulate_retention_offers(df: pd.DataFrame, budget_cap: float = None) -> pd.DataFrame:
     """
     Simulates ROI for 4 retention offer strategies across 30,000 real UCI credit card accounts.
-    Uses Knapsack-style ROI Density Optimization (sorting by Net ROI per dollar spent)
+    Uses Dantzig's Greedy Knapsack ROI Density Heuristic (ranking accounts by Net ROI per dollar spent)
     with 3-year capped LTV horizons and conservative USD unit economics.
+    
+    Methodology Notes:
+    1. Two-Stage Greedy Heuristic: Each account pre-selects its top net-value offer first, and accounts
+       are then greedily ranked by ROI density to fill the $100k budget cap.
+    2. Scenario Modeling: Intervention effects are modeled via baseline uplift multipliers.
+    3. Sensitivity Haircut: Downside risk is stress-tested with a 50% haircut on gross retained LTV savings.
     """
     if budget_cap is None:
         budget_cap = config.DEFAULT_CAMPAIGN_BUDGET_USD
@@ -94,7 +100,12 @@ def simulate_retention_offers(df: pd.DataFrame, budget_cap: float = None) -> pd.
     df['offer_cost'] = [r[2] for r in res]
     df['retained_ltv_gain'] = [r[3] for r in res]
     
-    # 5. Knapsack ROI Density Optimization
+    # 5. Greedy Knapsack ROI Density Heuristic
+    # Methodology Note: Implements Dantzig's greedy heuristic for budget-constrained capital allocation:
+    # 1. Accounts with positive expected net value are ranked by ROI density (expected_net_roi / offer_cost).
+    # 2. Offers are allocated greedily in descending density order until cumulative spend reaches the $100k cap.
+    # Note: This is an efficient heuristic approximation rather than an exact 0/1 integer linear programming (ILP) solver.
+    # Each account's top-net-value offer is selected prior to budget ranking (two-stage greedy selection).
     df['roi_density'] = np.round(df['expected_net_roi'] / (df['offer_cost'] + 1e-5), 4)
     
     eligible = df[df['expected_net_roi'] > 0].copy()

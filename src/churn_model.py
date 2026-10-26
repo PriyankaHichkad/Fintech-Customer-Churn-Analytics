@@ -71,6 +71,12 @@ def train_and_evaluate_churn_models(data_path: str = None):
     xgb_pr_auc = average_precision_score(y_test, xgb_probs_test)
     
     # Predict probabilities for full dataset downstream ROI simulation
+    # Methodology Note: The reported ML metrics (XGBoost Test ROC-AUC: 0.7789, Top 20% Capture: 51.66%)
+    # are evaluated strictly out-of-sample on the held-out 25% test set (X_test, y_test).
+    # Downstream, the full historical portfolio (30,000 accounts) is scored to simulate enterprise-wide
+    # capital allocation. Because this simulation includes the 75% training records, the portfolio-level
+    # ROI results represent directional scenario estimates; a live banking deployment would use
+    # prospective out-of-time (OOT) cohorts or cross-validated out-of-fold (OOF) predictions.
     df['predicted_churn_prob'] = xgb_model.predict_proba(X)[:, 1]
     df['risk_decile'] = pd.qcut(df['predicted_churn_prob'].rank(method='first'), q=10, labels=list(range(10, 0, -1))).astype(int)
     

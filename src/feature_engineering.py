@@ -31,8 +31,14 @@ def clean_and_engineer_uci_data(data_path: str = None) -> pd.DataFrame:
     df['marriage_clean'] = df['MARRIAGE'].map(marr_map).fillna('Others')
     df['gender'] = df['SEX'].map({1: 'Male', 2: 'Female'}).fillna('Unknown')
     
-    # Target: default.payment.next.month (Credit Default Risk Trigger)
-    df['churn_label'] = df['default.payment.next.month']
+    # Target: default.payment.next.month (Binary indicator of payment default next month)
+    # Methodology Note: In the UCI Credit Card dataset, this label reflects 30-day payment default,
+    # not voluntary account closure or product cancellation. In this engine, payment default serves
+    # as a financial-distress risk proxy to evaluate a proactive retention and delinquency mitigation framework.
+    # While real banking deployments distinguish voluntary churn from delinquency collections, default risk
+    # represents a primary driver of account impairment and margin loss.
+    df['default_label'] = df['default.payment.next.month']
+    df['churn_label'] = df['default.payment.next.month']  # Retained for downstream compatibility
     df['customer_id'] = [f"CC-{id_val}" for id_val in df['ID']]
     
     # 2. Currency Conversion (NT$ to USD)
@@ -51,6 +57,10 @@ def clean_and_engineer_uci_data(data_path: str = None) -> pd.DataFrame:
     pay_amt_cols_usd = [f"{col}_USD" for col in pay_amt_cols_raw]
     
     # 3. Time-Series Bill & Payment Aggregations (USD)
+    # Methodology Note: 'avg_monthly_spend' is derived from the 6-month average statement bill balance.
+    # Monthly bill statements combine new purchase volume with revolving balances, finance charges, and fees.
+    # In enterprise production feeds, interchange revenue and rewards are calculated directly from itemized
+    # purchase transaction clearing logs rather than total statement balances.
     df['avg_monthly_spend'] = np.round(df[bill_cols_usd].clip(lower=0).mean(axis=1), 2)
     df['annual_spend'] = df['avg_monthly_spend'] * 12
     df['avg_monthly_payment'] = np.round(df[pay_amt_cols_usd].clip(lower=0).mean(axis=1), 2)
@@ -70,6 +80,10 @@ def clean_and_engineer_uci_data(data_path: str = None) -> pd.DataFrame:
     df['delinquency_count'] = (df[pay_status_cols] > 0).sum(axis=1)
     
     # Deterministic Recency and Frequency Proxies (Seed=42)
+    # Methodology Note: The UCI statement dataset provides monthly bill/pay aggregates rather than raw transaction timestamps.
+    # 'days_since_last_txn' and 'transaction_count_monthly' are engineered behavioral proxies constructed to interface
+    # statement data with a standard RFM segmentation framework. Because 'days_since_last_txn' incorporates PAY_0,
+    # its high TreeSHAP importance directly reflects its strong underlying correlation with repayment delinquency.
     df['days_since_last_txn'] = np.where(df['PAY_0'] <= 0, np.random.randint(1, 15, len(df)), df['PAY_0'] * 30)
     df['transaction_count_monthly'] = np.clip(np.round(df['avg_monthly_spend'] / 80 + 5).astype(int), 1, 120)
     
@@ -123,7 +137,11 @@ def clean_and_engineer_uci_data(data_path: str = None) -> pd.DataFrame:
     
     df['annual_net_margin'] = (df['interchange_revenue_annual'] + df['annual_fee'] + df['interest_paid_12m']) - (df['reward_cost_annual'] + df['servicing_cost_annual'])
     
-    # Baseline expected LTV (Capped at 3-Year Horizon)
+    # Baseline expected LTV (Capitalized Retention Formula Capped at 3-Year Horizon)
+    # Methodology Note: Implements a capitalized retention multiplier: LTV = Margin * min(3.0, 1 / (churn + d)).
+    # This formula caps effective duration at 3.0 years to avoid over-crediting long-tenured accounts,
+    # serving as an annualized valuation heuristic prior to a full multi-period discounted cash flow (DCF) model
+    # with discrete survival curve integration.
     approx_churn = np.clip(0.10 + 0.15 * (df['max_delay_months'] > 0).astype(int) + 0.10 * (df['current_utilization'] > 0.80).astype(int), 0.05, 0.85)
     effective_years = np.minimum(config.LTV_MAX_HORIZON_YEARS, 1.0 / (approx_churn + config.DISCOUNT_RATE))
     df['baseline_ltv'] = np.round(df['annual_net_margin'] * effective_years, 2)

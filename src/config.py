@@ -40,11 +40,16 @@ OFFER_COSTS = {
     'vip_perks_fixed': 150.0      # $150 fixed perk cost
 }
 
-# Conservative Offer Effectiveness Multipliers (Realistic Treatment Effect Assumptions)
-# Designed to be recalibrated against production A/B test experimental data
+# Conservative Offer Effectiveness Multipliers (Scenario Uplift Modeling Assumptions)
+# Methodology Note: In the absence of live experimental uplift data, these coefficients specify
+# scenario-based risk reduction multipliers subject to maximum ceilings (e.g. delta_p_fee = min(0.20, 0.35 * p)).
+# Downstream ROI figures (including the 247% conservative estimate) are scenario projections;
+# a live production campaign requires randomized controlled trials (A/B testing) or causal uplift modeling
+# (e.g. CausalML / T-Learner) to measure empirical treatment effects and incremental lift.
 OFFER_EFFECTIVENESS = {
     'fee_waiver': {'multiplier': 0.35, 'max_reduction': 0.20},
     'points_boost': {'multiplier': 0.25, 'max_reduction': 0.15},
     'apr_cut': {'multiplier': 0.30, 'max_reduction': 0.18},
     'vip_perks': {'multiplier': 0.22, 'max_reduction': 0.15}
 }
+

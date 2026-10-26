@@ -304,3 +304,16 @@ with tab4:
     
     csv_data = budget_sim[['customer_id', 'card_tier', 'LIMIT_BAL_USD', 'predicted_churn_prob', 'avg_monthly_spend', 'recommended_offer', 'offer_cost', 'expected_net_roi', 'roi_density']].to_csv(index=False).encode('utf-8')
     st.download_button("Download Campaign Target Recommendations CSV", data=csv_data, file_name="uci_retention_campaign_targets.csv", mime="text/csv")
+
+# Analytical Methodology Disclosures
+with st.expander("Analytical Methodology Disclosures & Production Roadmap"):
+    st.markdown("""
+    **Analytical Disclosures & Production Engineering Notes:**
+    1. **Default Proxy for Churn:** The model predicts 30-day payment default (`default.payment.next.month`) from the UCI Credit Card dataset as a financial-distress risk proxy. In live banking environments, voluntary attrition (customer closure) and involuntary delinquency (credit charge-off) are tracked via distinct operational labels.
+    2. **Scenario Uplift Assumptions:** Retention offer risk reductions are modeled via baseline effectiveness multipliers rather than observed uplift from randomized experiments. Live deployments require causal uplift modeling (e.g. CausalML) or A/B testing to measure incremental response.
+    3. **Full-Portfolio Scoring:** Model accuracy metrics (ROC-AUC 0.7789, Top 20% Capture 51.66%) are calculated strictly out-of-sample on the held-out 25% test set. Downstream campaign simulations score all 30,000 historical accounts to evaluate book-wide capital allocation.
+    4. **Greedy Knapsack Heuristic:** Portfolio optimization employs Dantzig's greedy ROI-density heuristic (two-stage selection: best net offer per account chosen first, followed by density ranking) to approximate the optimal budget allocation under constraints.
+    5. **Behavioral Proxies:** Because UCI statement records aggregate monthly balances without POS timestamps, recency and monthly transaction frequency are engineered proxies tied to repayment timeliness and spending.
+    6. **Statement Balance Spend Proxy:** Spend is estimated from 6-month average statement bill balances (`BILL_AMT1-6`). Production ledgers compute interchange and rewards on cleared purchase transactions.
+    7. **3-Year Capped LTV:** LTV is computed using an annualized capitalized retention heuristic capped at a 3.0-year horizon ($M \\times \\min(3.0, 1/(p+d))$) to prevent over-crediting long-tenured accounts prior to multi-period survival DCF modeling.
+    """)
