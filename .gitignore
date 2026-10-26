@@ -15,3 +15,6 @@ ENV/
 
 # Internal Automation Scripts (PowerPoint Deck Generator)
 scripts/
+
+# Local Study & Interview Notes
+INTERVIEW_DEFENSE_GUIDE.md
